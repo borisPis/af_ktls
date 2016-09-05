@@ -128,6 +128,40 @@ update_expected:
 	tp->expected_seq = end_seq;
 }
 
+int tls_send_record(struct sock *sk, struct tls_record_info *record)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	int i = 0;
+	skb_frag_t *frag;
+	int flags = MSG_SENDPAGE_NOTLAST;
+	int ret = 0;
+
+	lock_sock(sk);
+	record->start_seq = tp->write_seq;
+	list_add_tail(&record->list, &tp->offload_list);
+
+	while (flags == MSG_SENDPAGE_NOTLAST) {
+		frag = &record->frags[i];
+
+		i++;
+		if (i == record->num_frags)
+			flags = 0;
+		ret = do_tcp_sendpages(sk, skb_frag_page(frag),
+				       frag->page_offset, skb_frag_size(frag),
+				       flags);
+
+		if (ret != skb_frag_size(frag)) {
+			pr_err("do_tcp_sendpages sent only part of the frag ret=%d",
+			       ret);
+		}
+	}
+	release_sock(sk);
+
+	pr_info("new record added %u\n", record->start_seq);
+	return ret;
+}
+EXPORT_SYMBOL(tls_send_record);
+
 struct tcp_offload_ops tls_offload_ops = {
 	clean_offloaded_data,
 	tcp_check_sync
