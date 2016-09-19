@@ -19,17 +19,15 @@ void clean_offloaded_data(struct sock *sk, int closing_sk)
 	struct ktls_offload_context *context = sk->sk_tls_offload;
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tls_record_info *info, *temp;
-	u32 end_seq;
 	unsigned long flags;
 
 	spin_lock_irqsave(&context->lock, flags);
 	list_for_each_entry_safe(info, temp, &context->records_list, list) {
-		end_seq = info->start_seq + info->len;
-		if (before(tp->snd_una, end_seq) && !closing_sk)
+		if (before(tp->snd_una, info->end_seq) && !closing_sk)
 			break;
 		list_del(&info->list);
 
-		pr_info("releasing record seq=%u\n", info->start_seq);
+		pr_info("releasing record seq=%u\n", info->end_seq);
 
 		tls_destroy_record(info);
 	}
@@ -42,9 +40,7 @@ struct tls_record_info *ktls_get_record(
 	struct tls_record_info *info;
 
 	list_for_each_entry(info, &context->records_list, list) {
-		u32 end_seq = info->start_seq + info->len;
-
-		if (before(seq, end_seq))
+		if (before(seq, info->end_seq))
 			return info;
 	}
 
@@ -62,7 +58,7 @@ int tls_send_record(struct sock *sk, struct tls_record_info *record)
 	int ret = 0;
 
 	lock_sock(sk);
-	record->start_seq = tp->write_seq;
+	record->end_seq = tp->write_seq + record->len;
 
 	spin_lock_irq(&context->lock);
 	list_add_tail(&record->list, &context->records_list);
@@ -85,7 +81,7 @@ int tls_send_record(struct sock *sk, struct tls_record_info *record)
 	}
 	release_sock(sk);
 
-	pr_info("new record added %u\n", record->start_seq);
+	pr_info("new record added %u\n", record->end_seq);
 	return ret;
 }
 EXPORT_SYMBOL(tls_send_record);
