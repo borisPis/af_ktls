@@ -4,6 +4,7 @@
 void tls_destroy_record(struct tls_record_info *record)
 {
 	skb_frag_t *frag;
+	pr_info("releasing record seq=%u\n", record->end_seq);
 
 	while (record->num_frags > 0) {
 		record->num_frags--;
@@ -22,15 +23,22 @@ void clean_offloaded_data(struct sock *sk, int closing_sk)
 	unsigned long flags;
 
 	spin_lock_irqsave(&context->lock, flags);
+	info = context->retransmit_hint;
+	if (info &&
+	    !before(tp->snd_una, info->end_seq)) {
+		context->retransmit_hint = NULL;
+		list_del(&info->list);
+		tls_destroy_record(info);
+	}
+
 	list_for_each_entry_safe(info, temp, &context->records_list, list) {
 		if (before(tp->snd_una, info->end_seq) && !closing_sk)
 			break;
 		list_del(&info->list);
 
-		pr_info("releasing record seq=%u\n", info->end_seq);
-
 		tls_destroy_record(info);
 	}
+
 	spin_unlock_irqrestore(&context->lock, flags);
 }
 
@@ -39,9 +47,17 @@ struct tls_record_info *ktls_get_record(
 			u32 seq) {
 	struct tls_record_info *info;
 
-	list_for_each_entry(info, &context->records_list, list) {
-		if (before(seq, info->end_seq))
+	info = context->retransmit_hint;
+	if (!info ||
+	    before(seq, info->end_seq - info->len))
+		info = list_first_entry(&context->records_list,
+					struct tls_record_info, list);
+
+	list_for_each_entry_from(info, &context->records_list, list) {
+		if (before(seq, info->end_seq)) {
+			context->retransmit_hint = info;
 			return info;
+		}
 	}
 
 	return NULL;

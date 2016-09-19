@@ -28,6 +28,7 @@ extern struct tcp_offload_ops tls_offload_ops;
 
 struct ktls_offload_context {
 	struct list_head records_list;
+	struct tls_record_info *retransmit_hint;
 	u32 expectedSN;
 	spinlock_t lock; /* protects records list */
 };
