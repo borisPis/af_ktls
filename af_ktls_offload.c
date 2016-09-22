@@ -18,7 +18,7 @@ void tls_destroy_record(struct tls_record_info *record)
 }
 EXPORT_SYMBOL(tls_destroy_record);
 
-void clean_offloaded_data(struct sock *sk, int closing_sk)
+static void clean_offloaded_data(struct sock *sk)
 {
 	struct ktls_offload_context *context = sk->sk_tls_offload;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -35,7 +35,7 @@ void clean_offloaded_data(struct sock *sk, int closing_sk)
 	}
 
 	list_for_each_entry_safe(info, temp, &context->records_list, list) {
-		if (before(tp->snd_una, info->end_seq) && !closing_sk)
+		if (before(tp->snd_una, info->end_seq))
 			break;
 		list_del(&info->list);
 
@@ -43,6 +43,19 @@ void clean_offloaded_data(struct sock *sk, int closing_sk)
 	}
 
 	spin_unlock_irqrestore(&context->lock, flags);
+}
+
+static void delete_all_records(struct sock *sk)
+{
+	struct ktls_offload_context *context = sk->sk_tls_offload;
+	struct tls_record_info *info, *temp;
+
+	/* TODO: is it guaranteed that there are no in-flight SKBs at this point? */
+
+	list_for_each_entry_safe(info, temp, &context->records_list, list) {
+		list_del(&info->list);
+		tls_destroy_record(info);
+	}
 }
 
 struct tls_record_info *ktls_get_record(
@@ -368,6 +381,8 @@ static void tls_offload_cleanup(struct sock *sk) {
 		pr_err("got offloaded socket with no netdev");
 		return;
 	}
+
+	delete_all_records(sk);
 
 	netdev->ktls_ops->ktls_dev_del(netdev, sk);
 	dev_put(netdev);
