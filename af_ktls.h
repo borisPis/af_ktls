@@ -281,4 +281,9 @@ static void tls_make_prepend(struct tls_sock *tsk,
 	}
 }
 
+int tls_set_offload(struct socket *sock, char __user *src, size_t src_len);
+int tls_sendmsg_with_offload(struct tls_sock *tsk, struct msghdr *msg,
+			     size_t size);
+ssize_t tls_sendpage_with_offload(struct socket *sock, struct page *page,
+				  int offset, size_t size, int flags);
 #endif
