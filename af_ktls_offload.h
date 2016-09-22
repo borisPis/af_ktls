@@ -10,4 +10,7 @@ struct tls_record_info {
 	int num_frags;
 	skb_frag_t	frags[MAX_SKB_FRAGS];
 };
+
+extern struct tcp_offload_ops tls_offload_ops;
+
 #endif /* AF_KTLS_OFFLOAD_H_ */
