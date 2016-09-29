@@ -226,7 +226,7 @@ static inline struct tls_sock *tls_sk(struct sock *sk)
 	return (struct tls_sock *)sk;
 }
 
-static void tls_err_abort(struct tls_sock *tsk)
+static inline void tls_err_abort(struct tls_sock *tsk)
 {
 	struct sock *sk;
 
@@ -237,7 +237,7 @@ static void tls_err_abort(struct tls_sock *tsk)
 	tsk->saved_sk_data_ready(tsk->socket->sk);
 }
 
-static void tls_increment_seqno(unsigned char *seq, struct tls_sock *tsk)
+static inline void tls_increment_seqno(unsigned char *seq, struct tls_sock *tsk)
 {
 	int i;
 
@@ -253,9 +253,9 @@ static void tls_increment_seqno(unsigned char *seq, struct tls_sock *tsk)
 		tls_err_abort(tsk);
 }
 
-static void tls_make_prepend(struct tls_sock *tsk,
-			     char *buf,
-			     size_t plaintext_len)
+static inline void tls_make_prepend(struct tls_sock *tsk,
+				    char *buf,
+				    size_t plaintext_len)
 {
 	size_t pkt_len;
 
